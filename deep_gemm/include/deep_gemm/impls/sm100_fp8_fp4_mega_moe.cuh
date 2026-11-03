@@ -607,17 +607,10 @@ sm100_fp8_fp4_mega_moe_impl(void* y,
                 *sym_buffer.map(
                     workspace.get_expert_recv_count_ptr(sym_buffer.rank_idx, dst_local_expert_idx),
                     dst_rank_idx) = expert_status & 0xffffffff;
-                if constexpr (kUseSimtPull) {
-                    // NOTES: no return value, so the pushes of all experts are in flight together; the release of the
-                    // NVLink barrier below orders them before the peers pull
-                    ptx::red_add_sys(
-                        sym_buffer.map(workspace.get_expert_recv_count_sum_ptr(dst_local_expert_idx), dst_rank_idx),
-                        expert_status);
-                } else {
-                    ptx::atomic_add_sys(
-                        sym_buffer.map(workspace.get_expert_recv_count_sum_ptr(dst_local_expert_idx), dst_rank_idx),
-                        expert_status);
-                }
+                // No returned value is needed; the NVLink barrier below orders the updates before peers pull.
+                ptx::red_add_sys(
+                    sym_buffer.map(workspace.get_expert_recv_count_sum_ptr(dst_local_expert_idx), dst_rank_idx),
+                    expert_status);
             }
         }
         ptx::sync_aligned(kNumDispatchThreads, kDispatchBarrierIdx);
